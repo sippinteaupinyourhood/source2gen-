@@ -167,7 +167,13 @@ namespace {
 
         const auto value_hash_name = fnv32::hash_runtime(metadata_entry.m_szName);
 
+        const auto check_network_value_ptr = [](const CSchemaNetworkValue* ptr) -> bool {
+            return ptr != nullptr && ptr != reinterpret_cast<const CSchemaNetworkValue*>(-1);
+        };
+
         if (std::ranges::find(var_name_string_class_metadata_entries, value_hash_name) != var_name_string_class_metadata_entries.end()) {
+            if (!check_network_value_ptr(metadata_entry.m_pNetworkValue))
+                return value;
             const auto& var_value = metadata_entry.m_pNetworkValue->m_VarValue;
             const auto check_ptr = [](const char* ptr) -> bool {
                 /// @note: hotfix for the deadlock 14/09/24 update,
@@ -182,6 +188,8 @@ namespace {
             else if (!check_ptr(var_value.m_pszName) && check_ptr(var_value.m_pszType))
                 value = var_value.m_pszType;
         } else if (std::ranges::find(string_class_metadata_entries, value_hash_name) != string_class_metadata_entries.end()) {
+            if (!check_network_value_ptr(metadata_entry.m_pNetworkValue))
+                return value;
             /// Explicitly convert to std::string with the size as the string may not end with a nullterm
             /// But if this string does contain a null terminator, we should properly handle this too
             const auto& szValue = metadata_entry.m_pNetworkValue->m_szValue;
@@ -190,10 +198,16 @@ namespace {
 
             value = std::string(metadata_entry.m_pNetworkValue->m_szValue.data(), size);
         } else if (std::ranges::find(string_metadata_entries, value_hash_name) != string_metadata_entries.end()) {
+            if (!check_network_value_ptr(metadata_entry.m_pNetworkValue))
+                return value;
             value = metadata_entry.m_pNetworkValue->m_pszValue;
         } else if (std::ranges::find(integer_metadata_entries, value_hash_name) != integer_metadata_entries.end()) {
+            if (!check_network_value_ptr(metadata_entry.m_pNetworkValue))
+                return value;
             value = std::to_string(metadata_entry.m_pNetworkValue->m_nValue);
         } else if (std::ranges::find(float_metadata_entries, value_hash_name) != float_metadata_entries.end()) {
+            if (!check_network_value_ptr(metadata_entry.m_pNetworkValue))
+                return value;
             value = std::to_string(metadata_entry.m_pNetworkValue->m_fValue);
         }
 
@@ -654,8 +668,11 @@ namespace {
 
         assert(type_name.empty() == array_sizes.empty());
 
+        const auto raw_name = std::string{type_name.empty() ? type.m_pszName : type_name};
         const auto type_name_with_modules =
-            ReassembleRetypedTemplate(generator, *type.m_pTypeScope, DecomposeTemplate(type_name.empty() ? type.m_pszName : type_name));
+            (type.m_pTypeScope != nullptr)
+                ? ReassembleRetypedTemplate(generator, *type.m_pTypeScope, DecomposeTemplate(raw_name))
+                : raw_name;
 
         if (!type_name.empty() && !array_sizes.empty())
             return {type_name_with_modules, array_sizes};
@@ -723,13 +740,14 @@ namespace {
             result.insert(includes.begin(), includes.end());
         }
 
-        const auto is_self = [self_module{GetModuleOfType(*class_.m_pSchemaType).value()}, self_type_name{class_.GetName()}](const auto& that) {
-            return (that.module == self_module) && (that.type_name == self_type_name);
-        };
-
         // don't forward-declare or include self. happens for self-referencing types, e.g. entity2::CEntityComponentHelper
-        if (const auto found = std::ranges::find_if(result, is_self); found != result.end()) {
-            result.erase(found);
+        if (const auto self_module = GetModuleOfType(*class_.m_pSchemaType); self_module.has_value()) {
+            const auto is_self = [&self_module, self_type_name{class_.GetName()}](const auto& that) {
+                return (that.module == *self_module) && (that.type_name == self_type_name);
+            };
+            if (const auto found = std::ranges::find_if(result, is_self); found != result.end()) {
+                result.erase(found);
+            }
         }
 
         return result;
@@ -1063,6 +1081,7 @@ namespace {
         // TODO: verify the above statement. Are static fields really shared between scopes?
         const std::string scope_name{class_.m_pTypeScope->BGetScopeName()};
 
+#if !defined(DEADLOCK)
         if (class_.m_pFieldMetadataOverrides && class_.m_pFieldMetadataOverrides->m_iTypeDescriptionCount > 1) {
             const auto& dm = class_.m_pFieldMetadataOverrides;
 
@@ -1103,6 +1122,7 @@ namespace {
                 }
             }
         }
+#endif
 
         if (!class_.m_nFieldSize && !class_.m_nStaticMetadataSize)
             generator.comment("No schema binary for binding");

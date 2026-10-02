@@ -659,25 +659,25 @@ public:
     SchemaClassInfoData_t* m_pSelf; // 0x0000
     const char* m_pszName; // 0x0008
     const char* m_pszModule; // 0x0010
-#if defined(DOTA2) || defined(CS2)
+#if defined(DOTA2) || defined(CS2) || defined(DEADLOCK)
     const char* m_pszName2; // 0x0018
 #endif
 
 
-    int m_nSizeOf; // 0x0018
+    int m_nSizeOf; // 0x0020
 
-    std::int16_t m_nFieldSize; // 0x001C
+    std::int16_t m_nFieldSize; // 0x0024
 
-    std::int16_t m_nStaticMetadataSize; // 0x0020
-    std::uint8_t m_unAlignOf; // 0x0022
+    std::int16_t m_nStaticMetadataSize; // 0x0026
+    std::uint8_t m_unAlignOf; // 0x0028
 
-    std::int8_t m_nBaseClassSize; // 0x0023
+    std::int8_t m_nBaseClassSize; // 0x0029
 
     // @note: @og: if there is no derived or base class, then it will be 1 otherwise derived class size + 1.
-    std::int16_t m_nMultipleInheritanceDepth; // 0x0024
-    std::int16_t m_nSingleInheritanceDepth; // 0x0026
+    std::int16_t m_nMultipleInheritanceDepth; // 0x002A
+    std::int16_t m_nSingleInheritanceDepth; // 0x002C
 
-    SchemaClassFieldData_t* m_pFields; // 0x0028
+    SchemaClassFieldData_t* m_pFields; // 0x0030
 
     SchemaBaseClassInfoData_t* m_pBaseClasses; // 0x0038
     SchemaFieldMetadataOverrideSetData_t* m_pFieldMetadataOverrides; // 0x0040
@@ -696,7 +696,7 @@ public:
         return reinterpret_cast<RetTy (*)(SchemaClassInfoFunctionIndex, Ty...)>(m_pFn)(index, std::forward<Ty>(args)...);
     }
 };
-#if defined(DOTA2) || defined(CS2)
+#if defined(DOTA2) || defined(CS2) || defined(DEADLOCK)
 static_assert(offsetof(SchemaClassInfoData_t, m_pFn) == 0x68, "Offset of m_pFn should be 0x68");
 #else
 static_assert(offsetof(SchemaClassInfoData_t, m_pFn) == 0x60, "Offset of m_pFn should be 0x60");

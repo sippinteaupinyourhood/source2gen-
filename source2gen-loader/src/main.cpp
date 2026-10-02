@@ -174,12 +174,14 @@ int main(const int argc, char* argv[]) try {
     assert(!arguments.empty());
     arguments.erase(arguments.begin());
 
-    std::string invoke_cmd = kExecutableName;
+    const auto executable_path = std::filesystem::absolute(argv[0]).parent_path() / kExecutableName;
+    std::string invoke_cmd = std::format("\"{}\"", executable_path.string());
     invoke_cmd += " " + (arguments | std::views::join_with(' ') | std::ranges::to<std::string>());
 
     std::println("*** loading source2gen: {}", invoke_cmd);
     std::fflush(stdout);
 
+    std::filesystem::current_path(executable_path.parent_path());
     std::system(invoke_cmd.c_str());
     return 0;
 } catch (const std::runtime_error& error) {
